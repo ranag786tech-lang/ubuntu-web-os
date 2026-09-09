@@ -7,16 +7,31 @@ import { format } from 'date-fns';
 import { Wifi, Volume2, Battery, Power, Keyboard, Accessibility } from 'lucide-react';
 import { useOS } from '@/hooks/useOSStore';
 
-const TopPanel = memo(function TopPanel() {
-  const { state, dispatch } = useOS();
+const Clock = memo(function Clock({ onClick }: { onClick: () => void }) {
   const [time, setTime] = useState(new Date());
-  const [sysMenuOpen, setSysMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  return (
+    <button
+      onClick={onClick}
+      className="absolute left-1/2 -translate-x-1/2 h-7 px-2 rounded hover:bg-[var(--bg-hover)] transition-colors text-xs font-medium group relative"
+    >
+      <span>{format(time, 'EEE h:mm a')}</span>
+      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 rounded bg-[var(--bg-tooltip)] text-[var(--text-primary)] text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[5000]">
+        {format(time, 'EEEE, MMMM d, yyyy')}
+      </div>
+    </button>
+  );
+});
+
+const TopPanel = memo(function TopPanel() {
+  const { state, dispatch } = useOS();
+  const [sysMenuOpen, setSysMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!sysMenuOpen) return;
@@ -36,9 +51,6 @@ const TopPanel = memo(function TopPanel() {
   const handleClockClick = useCallback(() => {
     dispatch({ type: 'TOGGLE_NOTIFICATION_CENTER' });
   }, [dispatch]);
-
-  const formattedTime = format(time, 'EEE h:mm a');
-  const formattedDate = format(time, 'EEEE, MMMM d, yyyy');
 
   return (
     <div
@@ -63,16 +75,7 @@ const TopPanel = memo(function TopPanel() {
       </div>
 
       {/* Center: Clock */}
-      <button
-        onClick={handleClockClick}
-        className="absolute left-1/2 -translate-x-1/2 h-7 px-2 rounded hover:bg-[var(--bg-hover)] transition-colors text-xs font-medium group relative"
-      >
-        <span>{formattedTime}</span>
-        {/* Tooltip */}
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 rounded bg-[var(--bg-tooltip)] text-[var(--text-primary)] text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[5000]">
-          {formattedDate}
-        </div>
-      </button>
+      <Clock onClick={handleClockClick} />
 
       {/* Right: System tray */}
       <div className="flex items-center gap-1">

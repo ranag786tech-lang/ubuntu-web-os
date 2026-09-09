@@ -4,7 +4,7 @@
 
 import { useCallback, useRef, useState, memo, useEffect } from 'react';
 import type { Window } from '@/types';
-import { useOS } from '@/hooks/useOSStore';
+import { useOSDispatch } from '@/hooks/useOSStore';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 
@@ -13,10 +13,10 @@ const RESIZE_HANDLE = 8;
 const MIN_W = 320;
 const MIN_H = 200;
 
-const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
+const DynamicIcon = memo(function DynamicIcon({ name, ...props }: { name: string } & LucideProps) {
   const IconComp = (Icons as unknown as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
   return IconComp ? <IconComp {...props} /> : <Icons.HelpCircle {...props} />;
-};
+});
 
 interface WindowFrameProps {
   window: Window;
@@ -24,16 +24,20 @@ interface WindowFrameProps {
 }
 
 const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowFrameProps) {
-  const { dispatch } = useOS();
+  const dispatch = useOSDispatch();
   const frameRef = useRef<HTMLDivElement>(null);
+  const windowRef = useRef(win);
   const dragRef = useRef<{ isDragging: boolean; startX: number; startY: number; origX: number; origY: number } | null>(null);
   const resizeRef = useRef<{ isResizing: boolean; edge: string; startX: number; startY: number; origW: number; origH: number; origX: number; origY: number } | null>(null);
+  const latestPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
 
   const isMaximized = win.state === 'maximized';
   const isMinimized = win.state === 'minimized';
   const isFocused = win.isFocused;
+  windowRef.current = win;
 
   const focusThis = useCallback(() => {
     if (!win.isFocused && win.state !== 'minimized') {
@@ -109,21 +113,27 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
 
   // ---- Global mouse events for drag/resize ----
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
+    if (!isDragging && !isResizing) return;
+
+    const updateWindow = () => {
+      animationFrameRef.current = null;
+      const pointer = latestPointerRef.current;
+      if (!pointer) return;
+
       if (dragRef.current?.isDragging) {
-        const dx = e.clientX - dragRef.current.startX;
-        const dy = e.clientY - dragRef.current.startY;
+        const dx = pointer.x - dragRef.current.startX;
+        const dy = pointer.y - dragRef.current.startY;
         let nx = dragRef.current.origX + dx;
         let ny = dragRef.current.origY + dy;
         const vw = window.innerWidth;
         ny = Math.max(TOP_PANEL_HEIGHT, ny);
-        nx = Math.min(Math.max(nx, -(win.size.width - 100)), vw - 100);
-        dispatch({ type: 'MOVE_WINDOW', windowId: win.id, position: { x: nx, y: ny } });
+        nx = Math.min(Math.max(nx, -(windowRef.current.size.width - 100)), vw - 100);
+        dispatch({ type: 'MOVE_WINDOW', windowId: windowRef.current.id, position: { x: nx, y: ny } });
       }
       if (resizeRef.current?.isResizing) {
         const { edge, startX, startY, origW, origH, origX, origY } = resizeRef.current;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
+        const dx = pointer.x - startX;
+        const dy = pointer.y - startY;
         let nx = origX, ny = origY, nw = origW, nh = origH;
         if (edge.includes('e')) nw = Math.max(MIN_W, origW + dx);
         if (edge.includes('s')) nh = Math.max(MIN_H, origH + dy);
@@ -136,13 +146,24 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
           ny = origY + (origH - nh);
           ny = Math.max(TOP_PANEL_HEIGHT, ny);
         }
-        dispatch({ type: 'MOVE_WINDOW', windowId: win.id, position: { x: nx, y: ny } });
-        dispatch({ type: 'RESIZE_WINDOW', windowId: win.id, size: { width: nw, height: nh } });
+        dispatch({ type: 'MOVE_WINDOW', windowId: windowRef.current.id, position: { x: nx, y: ny } });
+        dispatch({ type: 'RESIZE_WINDOW', windowId: windowRef.current.id, size: { width: nw, height: nh } });
+      }
+    };
+    const onMove = (e: MouseEvent) => {
+      latestPointerRef.current = { x: e.clientX, y: e.clientY };
+      if (animationFrameRef.current === null) {
+        animationFrameRef.current = requestAnimationFrame(updateWindow);
       }
     };
     const onUp = () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        updateWindow();
+      }
       dragRef.current = null;
       resizeRef.current = null;
+      latestPointerRef.current = null;
       setIsDragging(false);
       setIsResizing(false);
     };
@@ -151,8 +172,9 @@ const WindowFrame = memo(function WindowFrame({ window: win, children }: WindowF
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [dispatch, win.id, win.size.width, win.size.height]);
+  }, [dispatch, isDragging, isResizing]);
 
   const handleMinimize = useCallback(
     (e: React.MouseEvent) => {

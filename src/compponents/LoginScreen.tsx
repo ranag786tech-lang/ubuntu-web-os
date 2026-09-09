@@ -4,10 +4,10 @@
 
 import { useState, useCallback, memo } from 'react';
 import { LogOut, Moon, Power, User } from 'lucide-react';
-import { useOS } from '@/hooks/useOSStore';
+import { useOSDispatch } from '@/hooks/useOSStore';
 
 const LoginScreen = memo(function LoginScreen() {
-  const { dispatch } = useOS();
+  const dispatch = useOSDispatch();
   const [password, setPassword] = useState('');
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [error, setError] = useState(false);
