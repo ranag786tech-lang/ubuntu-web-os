@@ -361,6 +361,16 @@ function osReducer(state: OSState, action: OSAction): OSState {
       };
     }
 
+    case 'CLEAR_DOCK_BOUNCE': {
+      const appIds = new Set(action.appIds);
+      return {
+        ...state,
+        dockItems: state.dockItems.map((d) =>
+          appIds.has(d.appId) && d.bounce ? { ...d, bounce: false } : d
+        ),
+      };
+    }
+
     case 'SHOW_CONTEXT_MENU': {
       return {
         ...state,
@@ -456,13 +466,16 @@ interface OSContextType {
 }
 
 const OSContext = createContext<OSContextType | null>(null);
+const OSDispatchContext = createContext<React.Dispatch<OSAction> | null>(null);
 
 export const OSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(osReducer, initialState);
   return (
-    <OSContext.Provider value={{ state, dispatch }}>
-      {children}
-    </OSContext.Provider>
+    <OSDispatchContext.Provider value={dispatch}>
+      <OSContext.Provider value={{ state, dispatch }}>
+        {children}
+      </OSContext.Provider>
+    </OSDispatchContext.Provider>
   );
 };
 
@@ -470,6 +483,13 @@ export const useOS = () => {
   const ctx = useContext(OSContext);
   if (!ctx) throw new Error('useOS must be used within OSProvider');
   return ctx;
+};
+
+// Components that only issue actions should not re-render for every state update.
+export const useOSDispatch = () => {
+  const dispatch = useContext(OSDispatchContext);
+  if (!dispatch) throw new Error('useOSDispatch must be used within OSProvider');
+  return dispatch;
 };
 
 // ---- Convenience hooks ----

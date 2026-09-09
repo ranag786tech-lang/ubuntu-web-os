@@ -26,8 +26,14 @@ const Dock = memo(function Dock() {
     const bouncing = dockItems.filter((d) => d.bounce).map((d) => d.appId);
     if (bouncing.length > 0) {
       setBouncingItems((prev) => new Set([...prev, ...bouncing]));
-      dispatch({ type: 'BOUNCE_DOCK_ITEM', appId: bouncing[0] });
-      const timer = setTimeout(() => setBouncingItems(new Set()), 400);
+      const timer = setTimeout(() => {
+        setBouncingItems((prev) => {
+          const next = new Set(prev);
+          bouncing.forEach((appId) => next.delete(appId));
+          return next;
+        });
+        dispatch({ type: 'CLEAR_DOCK_BOUNCE', appIds: bouncing });
+      }, 400);
       return () => clearTimeout(timer);
     }
   }, [dockItems, dispatch]);

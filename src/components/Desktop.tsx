@@ -7,10 +7,10 @@ import { useOS } from '@/hooks/useOSStore';
 import * as Icons from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 
-const DynamicIcon = ({ name, ...props }: { name: string } & LucideProps) => {
+const DynamicIcon = memo(function DynamicIcon({ name, ...props }: { name: string } & LucideProps) {
   const IconComp = (Icons as unknown as unknown as Record<string, React.ComponentType<LucideProps>>)[name];
   return IconComp ? <IconComp {...props} /> : <Icons.HelpCircle {...props} />;
-};
+});
 
 const GRID_X = 80;
 const GRID_Y = 90;
@@ -19,8 +19,8 @@ const Desktop = memo(function Desktop() {
   const { state, dispatch } = useOS();
   const { desktopIcons, theme } = state;
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const desktopRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ id: string; pointerX: number; pointerY: number; position: { x: number; y: number } } | null>(null);
 
   const handleIconDoubleClick = useCallback(
     (icon: typeof desktopIcons[0]) => {
@@ -37,7 +37,12 @@ const Desktop = memo(function Desktop() {
       dispatch({ type: 'SELECT_DESKTOP_ICON', id: icon.id });
       if (icon.appId) {
         setDraggingId(icon.id);
-        setDragOffset({ x: e.clientX, y: e.clientY });
+        dragRef.current = {
+          id: icon.id,
+          pointerX: e.clientX,
+          pointerY: e.clientY,
+          position: icon.position,
+        };
       }
     },
     [dispatch]
@@ -45,28 +50,32 @@ const Desktop = memo(function Desktop() {
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!draggingId) return;
-      const dx = e.clientX - dragOffset.x;
-      const dy = e.clientY - dragOffset.y;
+      const drag = dragRef.current;
+      if (!drag) return;
+      const dx = e.clientX - drag.pointerX;
+      const dy = e.clientY - drag.pointerY;
       if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
 
-      const icon = desktopIcons.find((i) => i.id === draggingId);
-      if (!icon) return;
+      const nx = Math.round((drag.position.x + dx) / GRID_X) * GRID_X + 16;
+      const ny = Math.round((drag.position.y + dy) / GRID_Y) * GRID_Y + 16;
+      const position = { x: Math.max(16, nx), y: Math.max(16, ny) };
 
-      const nx = Math.round((icon.position.x + dx) / GRID_X) * GRID_X + 16;
-      const ny = Math.round((icon.position.y + dy) / GRID_Y) * GRID_Y + 16;
+      drag.pointerX = e.clientX;
+      drag.pointerY = e.clientY;
+      if (position.x === drag.position.x && position.y === drag.position.y) return;
 
       dispatch({
         type: 'UPDATE_DESKTOP_ICON_POSITION',
-        id: draggingId,
-        position: { x: Math.max(16, nx), y: Math.max(16, ny) },
+        id: drag.id,
+        position,
       });
-      setDragOffset({ x: e.clientX, y: e.clientY });
+      drag.position = position;
     },
-    [draggingId, dragOffset, desktopIcons, dispatch]
+    [dispatch]
   );
 
   const handleMouseUp = useCallback(() => {
+    dragRef.current = null;
     setDraggingId(null);
   }, []);
 
