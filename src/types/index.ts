@@ -231,6 +231,7 @@ export type OSAction =
   | { type: 'PIN_DOCK_ITEM'; appId: string }
   | { type: 'UNPIN_DOCK_ITEM'; appId: string }
   | { type: 'BOUNCE_DOCK_ITEM'; appId: string }
+  | { type: 'CLEAR_DOCK_BOUNCE'; appIds: string[] }
   | { type: 'SHOW_CONTEXT_MENU'; x: number; y: number; menuType: ContextMenuType; items: ContextMenuItem[]; contextData?: Record<string, unknown> }
   | { type: 'HIDE_CONTEXT_MENU' }
   | { type: 'START_ALT_TAB' }
